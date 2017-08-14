@@ -11,9 +11,9 @@ namespace plt = matplotlibcpp;
 using CppAD::AD;
 
 // TODO: Set N and dt
-size_t N = ? ;
-double dt = ? ;
-
+size_t N = 20 ;
+double dt = 0.05 ;
+AD<double> polyeval(Eigen::VectorXd coeffs, AD<double> x);
 // This value assumes the model presented in the classroom is used.
 //
 // It was obtained by measuring the radius formed by running the vehicle in the
@@ -54,8 +54,15 @@ class FG_eval {
   void operator()(ADvector& fg, const ADvector& vars) {
     // The cost is stored is the first element of `fg`.
     // Any additions to the cost should be added to `fg[0]`.
-    fg[0] = 0;
-
+    //double x=double(vars[x_start]);
+    //double y=vars[y_start];
+    for (int t = 0; t < N; t++) {
+      AD<double> y_ref=polyeval(coeffs,vars[x_start+t]);
+      fg[0] += CppAD::pow(vars[y_start+t]-y_ref,2);
+    }
+    cout<<"fg[0]"<<fg[0];
+    //fg[0] += 0.01*pow(ref_v-vars[v_start],2);
+    //fg[0] += pow(vars[psi_start], 2);
     // Reference State Cost
     // TODO: Define the cost related the reference state and
     // any anything you think may be beneficial.
@@ -79,12 +86,24 @@ class FG_eval {
 
     // The rest of the constraints
     for (int t = 1; t < N; t++) {
+      AD<double> cte1 = vars[cte_start + t];
+      AD<double> cte0 = vars[cte_start + t - 1];
+
       AD<double> x1 = vars[x_start + t];
-
       AD<double> x0 = vars[x_start + t - 1];
+      AD<double> y1 = vars[y_start + t];
+      AD<double> y0 = vars[y_start + t - 1];
+      AD<double> psi1 = vars[psi_start + t];
       AD<double> psi0 = vars[psi_start + t - 1];
+      AD<double> epsi1 = vars[epsi_start + t];
+      AD<double> epsi0 = vars[epsi_start + t - 1];
+      AD<double> v1 = vars[v_start + t];
       AD<double> v0 = vars[v_start + t - 1];
+      AD<double> a0 = vars[a_start + t - 1];
+      AD<double> d0 = vars[delta_start + t - 1];
+      AD<double> y_ref = polyeval(coeffs,x0);
 
+      AD<double> psi_des = CppAD::atan(coeffs[1]);//f(x) is a linear polynomial; f'(x) is a constant
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
       //
@@ -94,6 +113,11 @@ class FG_eval {
 
       // TODO: Setup the rest of the model constraints
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[1 + cte_start + t] = cte1 - (y_ref-y0 + (v0 * CppAD::sin(epsi0) * dt));
+      //fg[1 + psi_start + t] = psi1 - (psi0 + (v0 * d0*dt/Lf));
+      fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
+      //fg[1 + epsi_start + t] = epsi1 - (psi0-psi_des + (v0 * d0*dt/Lf));
     }
   }
 };
@@ -207,9 +231,9 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   //
   bool ok = true;
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
-
+  
   auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
+  std::cout << "Cost " << cost << "Ok="<<ok<<std::endl;
   return {solution.x[x_start + 1],   solution.x[y_start + 1],
           solution.x[psi_start + 1], solution.x[v_start + 1],
           solution.x[cte_start + 1], solution.x[epsi_start + 1],
@@ -221,8 +245,8 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
 //
 
 // Evaluate a polynomial.
-double polyeval(Eigen::VectorXd coeffs, double x) {
-  double result = 0.0;
+AD<double> polyeval(Eigen::VectorXd coeffs, AD<double> x) {
+  AD<double> result = 0.0;
   for (int i = 0; i < coeffs.size(); i++) {
     result += coeffs[i] * pow(x, i);
   }
@@ -263,17 +287,17 @@ int main() {
   ptsy << -1, -1;
 
   // TODO: fit a polynomial to the above x and y coordinates
-  auto coeffs = ? ;
-
+  auto coeffs = polyfit(ptsx,ptsy,1) ;
+  cout<<"coeffs"<<coeffs[0]<<","<<coeffs[1]<<endl;
   // NOTE: free feel to play around with these
   double x = -1;
   double y = 10;
   double psi = 0;
   double v = 10;
   // TODO: calculate the cross track error
-  double cte = ? ;
+  double cte = y-(ptsy[0]) ;
   // TODO: calculate the orientation error
-  double epsi = ? ;
+  double epsi = 0.0 ;
 
   Eigen::VectorXd state(6);
   state << x, y, psi, v, cte, epsi;
@@ -327,5 +351,6 @@ int main() {
   plt::title("Velocity");
   plt::plot(v_vals);
 
-  plt::show();
+  //plt::show();
+  plt::save("mpc.png");
 }
