@@ -60,7 +60,18 @@ class FG_eval {
       AD<double> y_ref=polyeval(coeffs,vars[x_start+t]);
       fg[0] += CppAD::pow(vars[y_start+t]-y_ref,2);
     }
-    cout<<"fg[0]"<<fg[0];
+
+    for (int t = 0; t < N-1; t++) {
+      fg[0] += pow(vars[a_start+t],2);
+      fg[0] += pow(vars[delta_start+t],2);
+    }
+
+    for (int t = 0; t < N-2; t++) {
+      fg[0] += pow(vars[a_start+t+1]-vars[a_start+t],2);
+      fg[0] += 500*pow(vars[delta_start+t+1]-vars[delta_start+t],2);
+    }
+
+
     //fg[0] += 0.01*pow(ref_v-vars[v_start],2);
     //fg[0] += pow(vars[psi_start], 2);
     // Reference State Cost
@@ -115,9 +126,9 @@ class FG_eval {
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       fg[1 + cte_start + t] = cte1 - (y_ref-y0 + (v0 * CppAD::sin(epsi0) * dt));
-      //fg[1 + psi_start + t] = psi1 - (psi0 + (v0 * d0*dt/Lf));
+      fg[1 + psi_start + t] = psi1 - (psi0 + (v0 * d0*dt/Lf));
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
-      //fg[1 + epsi_start + t] = epsi1 - (psi0-psi_des + (v0 * d0*dt/Lf));
+      fg[1 + epsi_start + t] = epsi1 - (psi0-psi_des + (v0 * d0*dt/Lf));
     }
   }
 };
